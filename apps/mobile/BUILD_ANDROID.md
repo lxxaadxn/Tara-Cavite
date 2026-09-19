@@ -103,7 +103,7 @@ Without them the release bundle ships with no backend config and the app cannot 
 
 | Field                | Value                                              |
 | -------------------- | -------------------------------------------------- |
-| Application ID       | `com.taracavite.app` (in `app.json`)               |
+| Application ID | `com.taracavite` (in `app.json`) |
 | Version name         | `expo.version` in `app.json`                       |
 | Version code         | `expo.android.versionCode` (auto-incremented by EAS)|
 | Privacy policy URL   | `https://YOUR-DOMAIN/privacy-policy`               |

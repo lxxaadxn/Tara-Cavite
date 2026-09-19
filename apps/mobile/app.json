@@ -11,7 +11,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.taracavite.app",
+      "package": "com.taracavite",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#000000",
