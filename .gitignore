@@ -65,6 +65,8 @@ apps/mobile/ios
 # Android signing material (never commit keys)
 *.keystore
 *.jks
+*.aab
+*.apk
 apps/mobile/credentials.json
 apps/mobile/credentials/
 apps/mobile/build-aab.bat
