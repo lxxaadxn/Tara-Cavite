@@ -5,7 +5,10 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ADMIN_RESERVED_EMAIL = 'forcapstone222@gmail.com';
+const ADMIN_RESERVED_EMAILS = [
+  'taracavite.app@gmail.com',
+  'forcapstone111@gmail.com',
+];
 
 type InviteBody = {
   email?: string;
@@ -92,7 +95,7 @@ Deno.serve(async (req) => {
   if (!email || !email.includes('@')) {
     return json(400, { error: 'Establishment email is required.' });
   }
-  if (email === ADMIN_RESERVED_EMAIL) {
+  if (ADMIN_RESERVED_EMAILS.some((reserved) => reserved.toLowerCase() === email.toLowerCase())) {
     return json(400, { error: 'That email is reserved for the Tourism Office admin.' });
   }
   if (!resend && !businessName) {

@@ -1,7 +1,6 @@
-﻿import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminBrandMark } from '../components/AdminBrandMark';
-import { ADMIN_ALLOWED_EMAIL } from '../lib/adminEmail';
 import { supabase } from '../lib/supabase';
 import styles from './LoginPage.module.css';
 
@@ -74,8 +73,7 @@ export function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={styles.input}
-                  placeholder={ADMIN_ALLOWED_EMAIL}
-                  required
+                                    required
                 />
               </label>
               {error ? (

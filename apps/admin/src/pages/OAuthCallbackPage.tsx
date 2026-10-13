@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { adminAllowlistHint, isAllowedAdminEmailAsync } from '../lib/adminEmail';
+import { isAllowedAdminEmailAsync } from '../lib/adminEmail';
 import {
   completeOAuthFromUrl,
   isStaleOAuthStateError,
@@ -138,9 +138,7 @@ export function OAuthCallbackPage() {
         // Show WHICH account Google actually returned â€” this exposes wrong-account
         // auto-selection instead of hiding behind a generic allowlist message.
         await supabase.auth.signOut();
-        goLogin(
-          `Google returned â€œ${email || 'an unknown account'}â€, but only ${adminAllowlistHint()} can access the admin app.`
-        );
+        goLogin('This account does not have admin access.');
         return;
       }
 

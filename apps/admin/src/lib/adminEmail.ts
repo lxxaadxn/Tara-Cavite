@@ -1,9 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+/** Head admin — the primary owner account for the admin app. */
+export const HEAD_ADMIN_EMAIL = 'taracavite.app@gmail.com';
+
 /** Bootstrap emails — always valid even before the DB allowlist loads. */
 export const ADMIN_ALLOWED_EMAILS = [
+  HEAD_ADMIN_EMAIL,
   'forcapstone111@gmail.com',
-  'forcapstone222@gmail.com',
 ] as const;
 
 /** Primary email shown in login hints (first allowlisted address). */
@@ -22,12 +25,6 @@ export function isAllowedAdminEmail(email: string): boolean {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   return bootstrap.has(normalized) || dynamicEmails.has(normalized);
-}
-
-export function adminAllowlistHint(): string {
-  const extras = [...dynamicEmails].filter((e) => !bootstrap.has(e)).sort();
-  if (extras.length === 0) return ADMIN_ALLOWED_EMAILS.join(' or ');
-  return [...ADMIN_ALLOWED_EMAILS, ...extras].join(' or ');
 }
 
 export function getLoadedAdminAllowlist(): string[] {

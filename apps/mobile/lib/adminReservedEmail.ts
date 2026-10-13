@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
-const ADMIN_RESERVED_EMAILS = ['forcapstone111@gmail.com', 'forcapstone222@gmail.com'];
+const ADMIN_RESERVED_EMAILS = [
+  'taracavite.app@gmail.com',
+  'forcapstone111@gmail.com',
+];
 
 /** Sync bootstrap check (always available). */
 export function isAdminReservedEmail(email = '') {
