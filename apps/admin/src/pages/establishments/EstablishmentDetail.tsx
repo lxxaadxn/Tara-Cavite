@@ -18,6 +18,7 @@ import {
   updateEstablishmentProfile,
   verificationLabel,
 } from '../../lib/adminEstablishments';
+import { createAccountWithPassword } from '../../lib/adminAccounts';
 import { buildCheckinUrl, qrImageUrl } from 'cavitour-shared/placeCheckin';
 import { getPublicWebOrigin } from '../../lib/placeVisits';
 import { supabase } from '../../lib/supabase';
@@ -91,6 +92,10 @@ export function EstablishmentDetail() {
   });
   const [generatingQr, setGeneratingQr] = useState(false);
   const [confirm, setConfirm] = useState<null | 'deactivate'>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [resending, setResending] = useState(false);
@@ -202,6 +207,51 @@ export function EstablishmentDetail() {
       toast(err instanceof Error ? err.message : 'Could not generate QR code', 'error');
     } finally {
       setGeneratingQr(false);
+    }
+  };
+
+  const closePasswordModal = () => {
+    if (passwordSaving) return;
+    setPasswordOpen(false);
+    setPasswordValue('');
+    setPasswordError('');
+  };
+
+  const submitPassword = async () => {
+    if (!row) return;
+    const password = passwordValue.trim();
+    if (password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordError('');
+    try {
+      const result = await createAccountWithPassword(supabase, {
+        email: row.email,
+        password,
+        role: 'establishment',
+        fullName: row.fullName,
+        businessName: row.businessName,
+        businessType: row.businessType,
+        lgu: row.lgu,
+        barangay: row.barangay,
+        address: row.address,
+        phone: row.phone,
+      });
+      toast(
+        result.updated
+          ? `Password set for existing account: ${row.email}`
+          : `Account created: ${row.email}`,
+        'success'
+      );
+      setPasswordOpen(false);
+      setPasswordValue('');
+      await reload();
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Could not set the password.');
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -460,6 +510,17 @@ export function EstablishmentDetail() {
                 {resending ? 'Sending…' : 'Resend invitation'}
               </button>
             ) : null}
+            <button
+              type="button"
+              className={shared.actionBtn}
+              onClick={() => {
+                setPasswordValue('');
+                setPasswordError('');
+                setPasswordOpen(true);
+              }}
+            >
+              Set password
+            </button>
             {row.setupCompletedAt && row.accountStatus === 'active' ? (
               row.publicVisible ? (
                 <button type="button" className={shared.actionBtn} onClick={() => void togglePublic(false)}>
@@ -501,6 +562,65 @@ export function EstablishmentDetail() {
           if (!saving) setConfirm(null);
         }}
       />
+
+      {passwordOpen && row ? (
+        <div
+          className={shared.modalOverlay}
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePasswordModal();
+          }}
+        >
+          <div className={shared.modal} role="dialog" aria-modal="true" aria-labelledby="set-password-title">
+            <h2 id="set-password-title">Set password</h2>
+            <p className={shared.modalHint}>
+              Create this establishment's account — or reset its password — for{' '}
+              <strong>{row.email}</strong>. The account can sign in right away with the password you
+              set here.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitPassword();
+              }}
+            >
+              <label className={shared.label}>
+                Password
+                <input
+                  className={shared.textInput}
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
+                  placeholder="At least 6 characters"
+                  minLength={6}
+                  required
+                  autoFocus
+                  disabled={passwordSaving}
+                />
+              </label>
+              {passwordError ? (
+                <p className={shared.modalError} role="alert">
+                  {passwordError}
+                </p>
+              ) : null}
+              <div className={shared.modalActions}>
+                <button
+                  type="button"
+                  className={shared.secondaryBtn}
+                  onClick={closePasswordModal}
+                  disabled={passwordSaving}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={shared.primaryBtn} disabled={passwordSaving}>
+                  {passwordSaving ? 'Saving…' : 'Set password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
