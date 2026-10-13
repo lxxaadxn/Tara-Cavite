@@ -667,9 +667,9 @@ const ProfileScreen: React.FC = () => {
           <View style={styles.cardHeadRow}>
             <Text style={styles.sectionTitle}>Public lists</Text>
             <TouchableOpacity
-              onPress={() => go('Saved')}
+              onPress={() => go('PublicLists')}
               accessibilityRole="button"
-              accessibilityLabel="Manage saved lists"
+              accessibilityLabel="Manage public lists"
             >
               <Text style={styles.manageLink}>Manage</Text>
             </TouchableOpacity>
@@ -721,12 +721,6 @@ const ProfileScreen: React.FC = () => {
             title="Account security"
             hint="Password and account access"
             onPress={() => openEdit(true)}
-          />
-          <SettingsRow
-            icon="world"
-            title="Privacy"
-            hint="Saved list visibility and public profile"
-            onPress={() => go('Privacy')}
           />
           <SettingsRow
             icon="document"

@@ -20,12 +20,17 @@ const OAUTH_REDIRECT_MODE_KEY = 'google_oauth_redirect_mode';
 
 const SETUP_HINT =
   'Google signed in, but the app did not get the return link.\n\n' +
-  'In Supabase → Authentication → URL Configuration → Redirect URLs, add:\n\n' +
-  '     cavitour://**\n' +
+  'If the browser ended up on the website, Supabase sent the sign-in to the Site URL instead of the app.\n\n' +
+  'KNOWN CAUSES:\n' +
+  '1. exp:// URLs with a private Wi-Fi IP (e.g. exp://192.168.x.x:8081/...) are ALWAYS rejected by\n' +
+  '   Supabase (private-IP security rule) regardless of the allow list. Fix: run a dev build\n' +
+  '   (npx expo run:android) so the app uses cavitour://auth/callback, or use npx expo start --tunnel.\n' +
+  '2. The app’s redirect URL is missing from the allow list. Fix: Supabase → Authentication →\n' +
+  '   URL Configuration → Redirect URLs, add and SAVE:\n\n' +
   '     cavitour://auth/callback\n' +
+  '     cavitour://**\n' +
   '     exp://**\n\n' +
-  'Site URL can stay http://localhost:5173\n' +
-  'Remove old http://192.168.x.x… rows, Save, reload the app, try again.';
+  'Keep the web URLs (Site URL + web auth/callback) as they are — do not remove them.';
 
 export type GoogleSignInPhase = 'starting' | 'google' | 'finishing' | 'done';
 
@@ -39,12 +44,11 @@ function isHttpUrl(url: string | undefined | null): boolean {
 
 function isOAuthReturnUrl(url: string | null | undefined): boolean {
   if (!url) return false;
-  return (
-    isOAuthCallbackUrl(url) ||
-    /[?&#]code=/i.test(url) ||
-    /access_token=/i.test(url) ||
-    /^cavitour:/i.test(url)
-  );
+  // Must carry auth data (?code=… / #access_token=… / ?error=…). A BARE
+  // cavitour://auth/callback (no params) is NOT a valid return — Android's
+  // openAuthSessionAsync and stale launch intents produce it, and treating it
+  // as a return caused the false "did not return a valid session" error.
+  return isOAuthCallbackUrl(url) || /[?&#]code=/i.test(url) || /access_token=/i.test(url);
 }
 
 async function markSignedIn(): Promise<void> {
@@ -170,7 +174,9 @@ async function runGoogleOAuthExpoOnly(options?: GoogleSignInOptions): Promise<vo
     onPhase?.('finishing');
 
     let callbackUrl: string | null =
-      result.type === 'success' && result.url ? result.url : linkCallback;
+      result.type === 'success' && result.url && isOAuthCallbackUrl(result.url)
+        ? result.url
+        : linkCallback;
 
     if (!callbackUrl) {
       const deadline = Date.now() + 280;
@@ -204,6 +210,12 @@ async function runGoogleOAuthExpoOnly(options?: GoogleSignInOptions): Promise<vo
         await ensureSessionFromCallback(linkCallback);
         onPhase?.('done');
         return;
+      }
+      if (result.type === 'dismiss') {
+        // The browser tab was closed WITHOUT the sign-in link ever coming back
+        // to the app — the signature of Supabase sending the sign-in to the
+        // website (Site URL) instead of the app's deep link.
+        throw new Error(SETUP_HINT);
       }
       throw new Error('Google sign in was cancelled.');
     }

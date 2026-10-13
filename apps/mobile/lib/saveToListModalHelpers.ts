@@ -24,17 +24,23 @@ export function alertAfterSaveToList(
   res: SaveResult,
   itemName: string,
   listName: string,
-  onSuccess: () => void
+  onSuccess: () => void,
+  /** Optional in-app dialog/toast; falls back to the system Alert. */
+  notify?: (title: string, message: string, tone?: 'success' | 'error' | 'info') => void
 ): void {
   if (res.ok) {
     onSuccess();
-    Alert.alert('Saved', `Added to “${listName}”.`);
+    if (notify) notify('Saved', `Added to “${listName}”.`, 'success');
+    else Alert.alert('Saved', `Added to “${listName}”.`);
     return;
   }
   if (res.duplicate) {
     onSuccess();
-    Alert.alert('Already in list', `“${itemName}” is already in “${listName}”.`);
+    if (notify) notify('Already in list', `“${itemName}” is already in “${listName}”.`, 'info');
+    else Alert.alert('Already in list', `“${itemName}” is already in “${listName}”.`);
     return;
   }
-  Alert.alert('Error', res.message ?? 'Could not save to this list.');
+  const message = res.message ?? 'Could not save to this list.';
+  if (notify) notify('Error', message, 'error');
+  else Alert.alert('Error', message);
 }

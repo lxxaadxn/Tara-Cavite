@@ -1,25 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  TextInput,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { JamIcon } from '../components/JamIcon';
 import { Header } from '../components/Header';
+import { AppDialog, type AppDialogData } from '../components/AppDialog';
 import type { JamIconName } from '../lib/jamSvgMap';
 import { legacyIoniconToJam } from '../lib/legacyIoniconToJam';
 import { supabase } from '../lib/supabase';
 import { fetchSavedItemCountsByListId } from '../lib/savedListItems';
-import { fetchPublishedItineraries, matchItinerary } from 'cavitour-shared/itineraries';
-import type { ItineraryCard } from '../data/mockData';
 
 interface SavedList {
   id: string;
@@ -39,8 +37,6 @@ const MUTED = '#7A7878';
 const CTA_DARK = '#213502';
 const TEAL = '#1B8A70';
 const PAGE_BG = '#F1F7F6';
-const INPUT_BG = '#FFFFFF';
-const PLACEHOLDER = '#B3AAAA';
 
 function listIconVisual(iconName: string): { name: JamIconName; color: string } {
   const jam = legacyIoniconToJam(iconName);
@@ -73,39 +69,6 @@ function formatUpdated(iso?: string): string {
   }
 }
 
-async function fetchSavedItinerariesAcrossLists(
-  client: typeof supabase,
-  listIds: string[]
-): Promise<ItineraryCard[]> {
-  if (!listIds.length) return [];
-  const { data: links, error } = await client
-    .from('saved_list_itinerary_items')
-    .select('itinerary_ref')
-    .in('list_id', listIds);
-  if (error || !links) return [];
-  const refs = [
-    ...new Set(
-      links
-        .map((r) => String((r as { itinerary_ref: string }).itinerary_ref ?? '').trim())
-        .filter(Boolean)
-    ),
-  ];
-  if (!refs.length) return [];
-  let published: Awaited<ReturnType<typeof fetchPublishedItineraries>> = [];
-  try {
-    published = await fetchPublishedItineraries(client);
-  } catch {
-    published = [];
-  }
-  const cards: ItineraryCard[] = [];
-  for (const ref of refs) {
-    const c = matchItinerary(published, ref) as ItineraryCard | null;
-    if (c) cards.push(c);
-  }
-  cards.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-  return cards;
-}
-
 const SavedListScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -113,8 +76,18 @@ const SavedListScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<AppDialogData | null>(null);
   const [query, setQuery] = useState('');
-  const [savedItineraries, setSavedItineraries] = useState<ItineraryCard[]>([]);
+
+  const filteredLists = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return lists;
+    return lists.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        (l.description ?? '').toLowerCase().includes(q)
+    );
+  }, [lists, query]);
 
   const loadLists = async (isRefresh = false) => {
     try {
@@ -125,7 +98,6 @@ const SavedListScreen: React.FC = () => {
       } = await supabase.auth.getUser();
       if (!user) {
         setLists([]);
-        setSavedItineraries([]);
         return;
       }
 
@@ -150,17 +122,9 @@ const SavedListScreen: React.FC = () => {
         console.error('Error loading list place counts:', e);
       }
       setLists(rows.map((l) => ({ ...l, place_count: counts[l.id] ?? 0 })));
-
-      try {
-        setSavedItineraries(await fetchSavedItinerariesAcrossLists(supabase, listIds));
-      } catch (e) {
-        console.error('Error loading saved itineraries:', e);
-        setSavedItineraries([]);
-      }
     } catch (error) {
       console.error('Error loading lists:', error);
       setLists([]);
-      setSavedItineraries([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -173,41 +137,45 @@ const SavedListScreen: React.FC = () => {
     }, [])
   );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return lists;
-    return lists.filter(
-      (l) =>
-        l.name.toLowerCase().includes(q) ||
-        (l.description ?? '').toLowerCase().includes(q)
-    );
-  }, [lists, query]);
-
   const handleDelete = (list: SavedList) => {
-    Alert.alert(
-      'Delete list',
-      `Remove “${list.name}” and all items inside it? This can’t be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setDialog({
+      title: 'Delete list',
+      message: `Remove “${list.name}” and all items inside it? This can’t be undone.`,
+      buttons: [
+        { label: 'Cancel', variant: 'text', onPress: () => undefined },
         {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingId(list.id);
-            try {
-              const { error } = await supabase.from('saved_lists').delete().eq('id', list.id);
-              if (error) throw error;
-              setLists((prev) => prev.filter((l) => l.id !== list.id));
-            } catch (error) {
-              console.error('Error deleting list:', error);
-              Alert.alert('Error', 'Could not delete this list. Try again.');
-            } finally {
-              setDeletingId(null);
-            }
+          label: 'Delete',
+          variant: 'danger',
+          onPress: () => {
+            void (async () => {
+              setDialog({
+                title: 'Deleting…',
+                message: 'Please wait a moment.',
+                buttons: [
+                  { label: 'Cancel', variant: 'text', onPress: () => undefined },
+                ],
+              });
+              setDeletingId(list.id);
+              try {
+                const { error } = await supabase.from('saved_lists').delete().eq('id', list.id);
+                if (error) throw error;
+                setLists((prev) => prev.filter((l) => l.id !== list.id));
+                setDialog(null);
+              } catch (error) {
+                console.error('Error deleting list:', error);
+                setDialog({
+                  title: 'Error',
+                  message: 'Could not delete this list. Try again.',
+                  buttons: [{ label: 'OK', onPress: () => undefined }],
+                });
+              } finally {
+                setDeletingId(null);
+              }
+            })();
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const handleOpenList = (list: SavedList) => {
@@ -222,13 +190,6 @@ const SavedListScreen: React.FC = () => {
         icon_name: list.icon_name,
         type: list.type,
       },
-    });
-  };
-
-  const openItinerary = (card: ItineraryCard) => {
-    (navigation as { navigate: (name: string, params: object) => void }).navigate('Itineraries', {
-      screen: 'ItineraryDetail',
-      params: { itineraryId: card.id },
     });
   };
 
@@ -306,20 +267,24 @@ const SavedListScreen: React.FC = () => {
       <View style={styles.body}>
         {lists.length > 0 ? (
           <View style={styles.searchRow}>
-            <View style={styles.searchShell}>
-              <JamIcon ionicon="search" size={18} color={MUTED} />
+            <View style={styles.searchPill}>
+              <JamIcon name="search" size={18} color={GREEN} />
               <TextInput
+                style={styles.searchInput}
+                placeholder="Search lists"
+                placeholderTextColor="#B3AAAA"
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search lists…"
-                placeholderTextColor={PLACEHOLDER}
-                style={styles.searchInput}
-                returnKeyType="search"
-                accessibilityLabel="Search saved lists"
+                accessibilityLabel="Search lists"
               />
               {query.length > 0 ? (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Clear search">
-                  <JamIcon ionicon="close-circle" size={20} color={MUTED} />
+                <TouchableOpacity
+                  onPress={() => setQuery('')}
+                  accessibilityLabel="Clear search"
+                  accessibilityRole="button"
+                  hitSlop={8}
+                >
+                  <JamIcon ionicon="close" size={18} color={MUTED} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -354,7 +319,7 @@ const SavedListScreen: React.FC = () => {
           </View>
         ) : (
           <FlatList
-            data={filtered}
+            data={filteredLists}
             renderItem={renderListItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={[
@@ -362,6 +327,11 @@ const SavedListScreen: React.FC = () => {
               { paddingBottom: Math.max(insets.bottom, 20) + 32 },
             ]}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              query.trim() ? (
+                <Text style={styles.noMatch}>No lists match “{query.trim()}”.</Text>
+              ) : null
+            }
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -370,50 +340,11 @@ const SavedListScreen: React.FC = () => {
                 colors={[GREEN]}
               />
             }
-            ListFooterComponent={
-              <View>
-                <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Itineraries</Text>
-                {savedItineraries.length === 0 ? (
-                  <Text style={styles.itinEmpty}>
-                    Save a curated route from an itinerary page to see it here.
-                  </Text>
-                ) : (
-                  savedItineraries.map((card) => (
-                    <TouchableOpacity
-                      key={card.id}
-                      style={styles.itinRow}
-                      onPress={() => openItinerary(card)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${card.title}, itinerary`}
-                    >
-                      <View style={styles.iconBubble}>
-                        <JamIcon ionicon="map-outline" size={24} color={TEAL} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <Text style={styles.listTitle} numberOfLines={1}>
-                          {card.title}
-                        </Text>
-                        {card.subtitle ? (
-                          <Text style={styles.updatedHint} numberOfLines={1}>
-                            {card.subtitle}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <JamIcon ionicon="chevron-forward" size={20} color={MUTED} />
-                    </TouchableOpacity>
-                  ))
-                )}
-              </View>
-            }
-            ListEmptyComponent={
-              query.trim() ? (
-                <Text style={styles.noMatch}>No lists match “{query.trim()}”.</Text>
-              ) : null
-            }
           />
         )}
       </View>
+
+      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
     </View>
   );
 };
@@ -425,34 +356,6 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-  },
-  sectionTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 16,
-    lineHeight: 22,
-    color: TITLE,
-    marginBottom: 4,
-  },
-  sectionTitleSpaced: {
-    marginTop: 20,
-  },
-  itinEmpty: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    color: MUTED,
-    marginBottom: 4,
-  },
-  itinRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: WHITE,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(27, 138, 112, 0.08)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginTop: 8,
   },
   loadingBody: {
     flex: 1,
@@ -476,29 +379,43 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
+    paddingHorizontal: 16,
     marginTop: 12,
     marginBottom: 12,
+    gap: 10,
   },
-  searchShell: {
+  searchPill: {
     flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: INPUT_BG,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(27, 138, 112, 0.12)',
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: WHITE,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(122, 120, 120, 0.28)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
+    minWidth: 0,
+    paddingVertical: 0,
+    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
     color: TITLE,
-    paddingVertical: 4,
+  },
+  noMatch: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: MUTED,
+    textAlign: 'center',
+    marginTop: 24,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -586,13 +503,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: 'rgba(122, 120, 120, 0.2)',
-  },
-  noMatch: {
-    textAlign: 'center',
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: MUTED,
-    paddingVertical: 32,
   },
   emptyWrap: {
     flex: 1,

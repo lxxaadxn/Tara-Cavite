@@ -292,10 +292,10 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.brandTitle}>Tara, Cavite!</Text>
           <Text style={styles.headTitle}>Privacy Policy</Text>
           <View style={styles.effectiveChip}>
-            <Text style={styles.effectiveText}>Effective date \u00b7 September 17, 2026</Text>
+            <Text style={styles.effectiveText}>Effective date September 17, 2026</Text>
           </View>
           <Text style={styles.headBody}>
-            This policy describes how Tara, Cavite! (\u201cthe App\u201d) handles information when you use our mobile
+            This policy describes how Tara, Cavite! handles information when you use our mobile
             application available on Google Play. By using the App, you agree to the practices described here.
           </Text>
         </View>

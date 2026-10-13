@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Header, HeaderAction } from '../components/Header';
+import { AppDialog, type AppDialogData } from '../components/AppDialog';
 import { JamIcon } from '../components/JamIcon';
 import type { JamIconName } from '../lib/jamSvgMap';
 import { legacyIoniconToJam } from '../lib/legacyIoniconToJam';
@@ -48,6 +48,7 @@ const NewListScreen: React.FC = () => {
   const [listType, setListType] = useState<'private' | 'shared'>('private');
   const [selectedIcon, setSelectedIcon] = useState<JamIconName>('smiley');
   const [saving, setSaving] = useState(false);
+  const [dialog, setDialog] = useState<AppDialogData | null>(null);
 
   const iconOptions: JamIconName[] = ['smiley', 'heart', 'star', 'bookmark', 'flag', 'bus', 'map-marker'];
 
@@ -68,7 +69,7 @@ const NewListScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!listName.trim()) {
-      Alert.alert('Error', 'Please enter a list name.');
+      setDialog({ title: 'Name required', message: 'Please enter a list name.', buttons: [{ label: 'OK', onPress: () => undefined }] });
       return;
     }
 
@@ -76,7 +77,7 @@ const NewListScreen: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to save a list.');
+        setDialog({ title: 'Sign in required', message: 'You must be logged in to save a list.', buttons: [{ label: 'OK', onPress: () => undefined }] });
         setSaving(false);
         return;
       }
@@ -99,11 +100,11 @@ const NewListScreen: React.FC = () => {
           throw error;
         }
 
-        Alert.alert(
-          'Changes saved',
-          'Your list was updated successfully. You can edit it again anytime from Saved List.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        setDialog({
+          title: 'Changes saved',
+          message: 'Your list was updated successfully. You can edit it again anytime from Saved List.',
+          buttons: [{ label: 'OK', onPress: () => navigation.goBack() }],
+        });
       } else {
         const { error } = await supabase
           .from('saved_lists')
@@ -120,24 +121,30 @@ const NewListScreen: React.FC = () => {
         if (error) {
           console.error('Error creating list:', error);
           if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-            Alert.alert(
-              'Database Error',
-              'The saved_lists table does not exist. Please run the Supabase schema.sql file in your Supabase Dashboard > SQL Editor.'
-            );
+            setDialog({
+              title: 'Database error',
+              message:
+                'The saved_lists table does not exist. Please run the Supabase schema.sql file in your Supabase Dashboard > SQL Editor.',
+              buttons: [{ label: 'OK', onPress: () => undefined }],
+            });
           } else {
             throw error;
           }
           return;
         }
 
-        Alert.alert(
-          'List saved',
-          'Your list was saved successfully. You can open and edit it anytime from Saved List.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        setDialog({
+          title: 'List saved',
+          message: 'Your list was saved successfully. You can open and edit it anytime from Saved List.',
+          buttons: [{ label: 'OK', onPress: () => navigation.goBack() }],
+        });
       }
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save list. Please try again.');
+      setDialog({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Failed to save list. Please try again.',
+        buttons: [{ label: 'OK', onPress: () => undefined }],
+      });
       console.error('Error saving list:', error);
     } finally {
       setSaving(false);
@@ -150,6 +157,7 @@ const NewListScreen: React.FC = () => {
     <View style={styles.root}>
       <Header
         title={isEditing ? 'Edit List' : 'New List'}
+       
         showBack
         darkBackground
         right={
@@ -264,6 +272,8 @@ const NewListScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
     </View>
   );
 };

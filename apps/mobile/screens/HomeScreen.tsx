@@ -342,7 +342,7 @@ const HomeScreen: React.FC = () => {
           <JamIcon name="search" size={18} color={FIGMA.searchGreen} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Where are you going?"
+            placeholder="Where to?"
             placeholderTextColor={SEARCH_PLACEHOLDER}
             value={searchQuery}
             onChangeText={setSearchQuery}

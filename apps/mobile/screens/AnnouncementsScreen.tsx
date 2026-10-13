@@ -22,7 +22,6 @@ import { supabase } from '../lib/supabase';
 const PAGE_BG = '#FAFAFA';
 const TEAL = '#1B8A70';
 const MUTED = '#7A7878';
-const H_PAD = 16;
 
 /** Deep link target from a notification row. */
 export type AnnouncementsParams = { focusId?: string };
@@ -126,8 +125,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   list: {
-    paddingHorizontal: H_PAD,
-    paddingTop: 14,
+    paddingHorizontal: 24,
+    paddingTop: 30,
     gap: 14,
   },
   error: {

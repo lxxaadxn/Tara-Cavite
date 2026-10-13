@@ -110,6 +110,18 @@ export function getExpoOAuthCallbackUrl(): string {
     return Linking.createURL(AUTH_CALLBACK_PATH);
   }
 
+  // Expo Go cannot receive cavitour:// links — it listens on the exp://
+  // proxy URL. Using the default Linking URL keeps Expo Go working, while
+  // standalone dev-client / release builds fall through to cavitour://.
+  try {
+    const def = Linking.createURL(AUTH_CALLBACK_PATH);
+    if (/^exp:\/\//i.test(def)) {
+      return def;
+    }
+  } catch {
+    /* empty */
+  }
+
   try {
     const withScheme = Linking.createURL(AUTH_CALLBACK_PATH, { scheme: 'cavitour' });
     if (/^cavitour:/i.test(withScheme)) {
@@ -177,11 +189,15 @@ export function getRedirectToFromAuthorizeUrl(oauthUrl: string): string {
 }
 
 export function isOAuthCallbackUrl(url: string): boolean {
+  if (!url) return false;
   if (/auth\/callback|auth\/mobile-callback/i.test(url)) {
     return true;
   }
   // App-scheme return from Google/Supabase (may omit path in some clients).
-  return /^cavitour:/i.test(url) && /(?:[?&#]code=|access_token=)/i.test(url);
+  // Also covers Expo Go's exp:// proxy return URL (e.g. exp://…/--/auth/callback?code=…).
+  return (
+    /^(cavitour|exp):/i.test(url) && /(?:[?&#]code=|access_token=|error=)/i.test(url)
+  );
 }
 
 export async function createSessionFromOAuthUrl(
@@ -229,7 +245,17 @@ export async function createSessionFromOAuthUrl(
     return;
   }
 
-  throw new Error('Google sign in did not return a valid session.');
+  // The return link reached us WITHOUT any sign-in data. That is the signature
+  // of Supabase sending the auth code to the website (Site URL) instead of the
+  // app's deep link — i.e. the redirect URL allow list did not accept it.
+  throw new Error(
+    'Google sign in did not return a valid session. The return link reached the app without any sign-in data.\n\n' +
+      'This happens when Supabase sends the sign-in to the website instead of the app — check that these exact entries ' +
+      'are saved in Supabase → Authentication → URL Configuration → Redirect URLs:\n\n' +
+      '     cavitour://auth/callback\n' +
+      '     cavitour://**\n' +
+      '     exp://**'
+  );
 }
 
 /** One exchange at a time — App.tsx + SignIn both see the deep link. */

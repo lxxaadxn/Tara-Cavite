@@ -16,6 +16,8 @@ import * as Location from 'expo-location';
 import { Header } from '../components/Header';
 import { JamIcon } from '../components/JamIcon';
 import { SaveToListSheet, type SaveToListRow } from '../components/SaveToListSheet';
+import { Toast, type ToastData } from '../components/Toast';
+import { AppDialog, type AppDialogData } from '../components/AppDialog';
 import { Place } from '../data/mockData';
 import { parsePlaceCoords } from '../lib/placeCoords';
 import { placeImageSource } from '../lib/placeImageSource';
@@ -180,6 +182,8 @@ const DirectionsScreen: React.FC = () => {
   const [saveListBusyId, setSaveListBusyId] = useState<string | null>(null);
   const [checkingSaved, setCheckingSaved] = useState(false);
   const [destinationReachedBusy, setDestinationReachedBusy] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [dialog, setDialog] = useState<AppDialogData | null>(null);
 
   const tags = useMemo(
     () => (place ? buildTags(place, { includeTaCategory: !caviTrip }) : []),
@@ -392,21 +396,25 @@ const DirectionsScreen: React.FC = () => {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      Alert.alert('Sign in', 'Sign in to save to your lists.');
+      setDialog({
+        title: 'Sign in',
+        message: 'Sign in to save to your lists.',
+        buttons: [{ label: 'OK', onPress: () => undefined }],
+      });
       return;
     }
 
     if (!isItinerary) {
       if (!isSupabasePlaceId(place.id)) {
-        Alert.alert(
-          'Can’t save this place',
-          'Only catalog locations with a database id can be added to a saved list.'
-        );
+        setToast({
+          message: 'Only catalog locations with a database id can be added to a saved list.',
+          tone: 'info',
+        });
         return;
       }
       const exists = await placeRowExists(supabase, place.id);
       if (!exists) {
-        Alert.alert('Place not found', 'This location is not in the catalog yet and can’t be saved.');
+        setToast({ message: 'This location is not in the catalog yet and can’t be saved.', tone: 'error' });
         return;
       }
     }
@@ -417,44 +425,62 @@ const DirectionsScreen: React.FC = () => {
       setPickLists(lists);
       setSaveModalVisible(true);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not load lists.');
+      setToast({ message: e instanceof Error ? e.message : 'Could not load lists.', tone: 'error' });
     }
   };
 
   const onConfirmRemoveSave = () => {
     if (!place) return;
-    Alert.alert('Remove from saved lists?', 'This removes the item from every list it’s in.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) {
-              setSaved(false);
-              return;
-            }
-            if (isItinerary) {
-              await removeItineraryFromAllUserLists(supabase, user.id, place.id);
-            } else if (isSupabasePlaceId(place.id)) {
-              await removePlaceFromAllUserLists(supabase, user.id, place.id);
-            }
-            setSaved(false);
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Could not update saved lists.');
-          }
+    setDialog({
+      title: 'Remove from saved lists?',
+      message: 'This removes the item from every list it’s in.',
+      buttons: [
+        { label: 'Cancel', variant: 'text', onPress: () => undefined },
+        {
+          label: 'Remove',
+          variant: 'danger',
+          onPress: () => {
+            void (async () => {
+              try {
+                const {
+                  data: { user },
+                } = await supabase.auth.getUser();
+                if (!user) {
+                  setSaved(false);
+                  return;
+                }
+                if (isItinerary) {
+                  await removeItineraryFromAllUserLists(supabase, user.id, place.id);
+                } else if (isSupabasePlaceId(place.id)) {
+                  await removePlaceFromAllUserLists(supabase, user.id, place.id);
+                }
+                setSaved(false);
+                setToast({ message: 'Removed from saved lists', tone: 'success' });
+              } catch (e) {
+                setDialog({
+                  title: 'Error',
+                  message: e instanceof Error ? e.message : 'Could not update saved lists.',
+                  buttons: [{ label: 'OK', onPress: () => undefined }],
+                });
+              }
+            })();
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
   const onPressSaveFab = () => {
     if (saved) onConfirmRemoveSave();
     else openSaveToListPicker();
   };
+
+  const notifySaveResult = useCallback(
+    (title: string, message: string, tone?: 'success' | 'error' | 'info') => {
+      setToast({ message, tone: tone ?? 'info' });
+    },
+    []
+  );
 
   const onPickList = async (list: SaveToListRow) => {
     if (!place) return;
@@ -464,7 +490,7 @@ const DirectionsScreen: React.FC = () => {
       alertAfterSaveToList(res, place.name, list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } finally {
       setSaveListBusyId(null);
     }
@@ -486,9 +512,9 @@ const DirectionsScreen: React.FC = () => {
       alertAfterSaveToList(res, place.name, list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not create list.');
+      setToast({ message: e instanceof Error ? e.message : 'Could not create list.', tone: 'error' });
     } finally {
       setSaveListBusyId(null);
     }
@@ -552,7 +578,7 @@ const DirectionsScreen: React.FC = () => {
         // Local visit still saved; cloud visit may fail if SQL not applied yet.
       }
       destinationRecordedRef.current = true;
-      Alert.alert('', 'Thank You and Enjoy your trip');
+      setToast({ message: 'Thank you and enjoy your trip!', tone: 'success' });
       return true;
     } catch {
       return false;
@@ -861,6 +887,9 @@ const DirectionsScreen: React.FC = () => {
         busyListId={saveListBusyId}
         countLabel="items"
       />
+
+      <Toast toast={toast} onDone={() => setToast(null)} />
+      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
     </View>
   );
 };

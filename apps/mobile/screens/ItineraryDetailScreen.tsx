@@ -17,6 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../constants/Colors';
 import { Header, HeaderAction } from '../components/Header';
 import { JamIcon } from '../components/JamIcon';
+import { Toast, type ToastData } from '../components/Toast';
+import { AppDialog, type AppDialogData } from '../components/AppDialog';
 import { LeafletMapView } from '../components/LeafletMapView';
 import { SaveToListSheet, type SaveToListRow } from '../components/SaveToListSheet';
 import type { PublishedItinerary } from '../data/publishedItineraries';
@@ -36,7 +38,6 @@ import {
   stopVenueName,
 } from '../lib/itineraryPlaces';
 import { googleMapsItineraryUrl, googleMapsPlaceUrl } from '../lib/googleMapsDirections';
-import { placeImageSource } from '../lib/placeImageSource';
 import {
   addItineraryToSavedList,
   fetchUserListsForPickerWithCounts,
@@ -79,6 +80,8 @@ export default function ItineraryDetailScreen() {
   const [pickLists, setPickLists] = useState<SaveToListRow[]>([]);
   const [listNameDraft, setListNameDraft] = useState('My list');
   const [saveListBusyId, setSaveListBusyId] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [dialog, setDialog] = useState<AppDialogData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,29 +246,47 @@ export default function ItineraryDetailScreen() {
 
   const onConfirmRemoveSave = () => {
     if (!template) return;
-    Alert.alert('Remove from saved lists?', 'This removes this itinerary from every list it’s in.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const {
-              data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) {
-              setSaved(false);
-              return;
-            }
-            await removeItineraryFromAllUserLists(supabase, user.id, template.id);
-            setSaved(false);
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'Could not update saved lists.');
-          }
+    setDialog({
+      title: 'Remove from saved lists?',
+      message: 'This removes this itinerary from every list it’s in.',
+      buttons: [
+        { label: 'Cancel', variant: 'text', onPress: () => undefined },
+        {
+          label: 'Remove',
+          variant: 'danger',
+          onPress: () => {
+            void (async () => {
+              try {
+                const {
+                  data: { user },
+                } = await supabase.auth.getUser();
+                if (!user) {
+                  setSaved(false);
+                  return;
+                }
+                await removeItineraryFromAllUserLists(supabase, user.id, template.id);
+                setSaved(false);
+                setToast({ message: 'Removed from saved lists', tone: 'success' });
+              } catch (e) {
+                setDialog({
+                  title: 'Error',
+                  message: e instanceof Error ? e.message : 'Could not update saved lists.',
+                  buttons: [{ label: 'OK', onPress: () => undefined }],
+                });
+              }
+            })();
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
+
+  const notifySaveResult = useCallback(
+    (title: string, message: string, tone?: 'success' | 'error' | 'info') => {
+      setToast({ message, tone: tone ?? 'info' });
+    },
+    []
+  );
 
   const onPickList = async (list: SaveToListRow) => {
     if (!template) return;
@@ -275,7 +296,7 @@ export default function ItineraryDetailScreen() {
       alertAfterSaveToList(res, detail?.title ?? 'Itinerary', list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } finally {
       setSaveListBusyId(null);
     }
@@ -297,7 +318,7 @@ export default function ItineraryDetailScreen() {
       alertAfterSaveToList(res, detail?.title ?? 'Itinerary', list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not create list.');
     } finally {
@@ -308,7 +329,7 @@ export default function ItineraryDetailScreen() {
   if (loadState === 'loading' && !template) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <Header title="Itinerary" showBack darkBackground onBackPress={onBack} />
+        <Header title="About" showBack darkBackground onBackPress={onBack} />
         <View style={styles.emptyWrap}>
           <ActivityIndicator color={HEADER_GREEN} />
         </View>
@@ -319,7 +340,7 @@ export default function ItineraryDetailScreen() {
   if (!template) {
     return (
       <SafeAreaView style={styles.safe} edges={['bottom']}>
-        <Header title="Itinerary" showBack darkBackground onBackPress={onBack} />
+        <Header title="About" showBack darkBackground onBackPress={onBack} />
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyTitle}>Not found</Text>
           <Text style={styles.emptyBody}>This itinerary is no longer available.</Text>
@@ -332,12 +353,11 @@ export default function ItineraryDetailScreen() {
   }
 
   const metaLine = itineraryStopsDurationLine(detail);
-  const heroImg = placeImageSource(detail?.image);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Header
-        title="Itineraries"
+        title="About"
         showBack
         darkBackground
         onBackPress={onBack}
@@ -347,27 +367,17 @@ export default function ItineraryDetailScreen() {
             disabled={checkingSaved}
             accessibilityLabel={saved ? 'Remove from saved lists' : 'Save to list'}
           >
-            <JamIcon ionicon={saved ? 'bookmark' : 'bookmark-outline'} size={24} color={WHITE} />
+            <JamIcon ionicon={saved ? 'bookmark' : 'bookmark-outline'} size={22} color={WHITE} />
           </HeaderAction>
         }
       />
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          {heroImg ? (
-            <Image source={heroImg} style={styles.heroImg} resizeMode="cover" accessibilityLabel="" />
-          ) : (
-            <View style={[styles.heroImg, styles.heroImgPlaceholder]} />
-          )}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.35)']}
-            style={styles.heroGradient}
-            pointerEvents="none"
-          />
           <LinearGradient
             colors={['#F1F7F6', '#F1F7F6', '#AACBC4']}
             style={styles.heroCopy}
@@ -483,6 +493,8 @@ export default function ItineraryDetailScreen() {
         ) : null}
       </ScrollView>
 
+      <Toast toast={toast} onDone={() => setToast(null)} />
+      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
       <SaveToListSheet
         visible={saveModalVisible}
         onClose={() => setSaveModalVisible(false)}
@@ -536,7 +548,6 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 6,
   },
-  heroImg: { width: '100%', height: HERO_H },
   heroImgPlaceholder: { backgroundColor: '#e8ebe6' },
   heroGradient: {
     position: 'absolute',
@@ -642,7 +653,7 @@ const styles = StyleSheet.create({
     backgroundColor: TEAL,
     paddingVertical: 14,
     borderRadius: 999,
-    marginBottom: 16,
+    marginBottom: 0,
     shadowColor: TEAL,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,

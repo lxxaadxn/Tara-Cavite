@@ -12,7 +12,6 @@ import { buildEnrichedItinerary } from '../lib/itineraryPlaces';
 import { fetchPublishedItineraries, subscribeItineraries } from 'cavitour-shared/itineraries';
 
 const PAGE_BG = '#F1F7F6';
-const H_PAD = 16;
 
 const ItinerariesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -90,8 +89,8 @@ const styles = StyleSheet.create({
     backgroundColor: PAGE_BG,
   },
   listContent: {
-    paddingHorizontal: H_PAD,
-    paddingTop: 12,
+    paddingHorizontal: 24,
+    paddingTop: 30,
     gap: 18,
   },
 });

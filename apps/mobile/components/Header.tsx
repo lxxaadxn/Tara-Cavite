@@ -21,6 +21,8 @@ interface HeaderProps {
   onFilterPress?: () => void;
   darkBackground?: boolean;
   showProfile?: boolean;
+  /** Overrides the default title size for screens that need a smaller heading. */
+  titleFontSize?: number;
   /** Trailing slot on the title bar, e.g. a save button or the icon cluster. */
   right?: React.ReactNode;
 }
@@ -37,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onFilterPress,
   darkBackground = false,
   showProfile = false,
+  titleFontSize,
   right,
 }) => {
   const navigation = useNavigation();
@@ -114,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
           <LogoWordmark markSize={28} wordFontSize={22} />
         </View>
       ) : (
-        <Text style={[styles.title, { color: textColor }]}>{title}</Text>
+        <Text style={[styles.title, { color: textColor, fontSize: titleFontSize }]}>{title}</Text>
       )}
       {/* Empty trailing slot still needs the back button's width so the title stays centred. */}
       <View style={styles.rightGroup}>

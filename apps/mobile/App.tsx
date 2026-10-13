@@ -59,6 +59,7 @@ import PreferencesScreen from './screens/PreferencesScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SavedListScreen from './screens/SavedListScreen';
 import SavedListDetailScreen from './screens/SavedListDetailScreen';
+import PublicListsScreen from './screens/PublicListsScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import SignInScreen from './screens/SignInScreen';
@@ -161,6 +162,7 @@ const ItinerariesStack = () => (
 const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+    <Stack.Screen name="PublicLists" component={PublicListsScreen} />
     <Stack.Screen name="UserDetails" component={UserDetailsScreen} />
     <Stack.Screen name="Preferences" component={PreferencesScreen} />
     <Stack.Screen name="History" component={HistoryScreen} />
@@ -229,6 +231,7 @@ const HIDE_TAB_ROUTES = new Set([
   'NewList',
   'CreateItinerary',
   'SavedListDetail',
+  'PublicLists',
   'ItineraryDetail',
   'UserDetails',
   'TravelHistory',

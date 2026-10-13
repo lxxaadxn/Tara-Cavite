@@ -200,7 +200,7 @@ export default function MapScreen() {
 
   return (
     <View style={styles.root}>
-      <SafeAreaView style={styles.safeTop} edges={['top']}>
+      <SafeAreaView style={styles.safeTop} edges={[]}>
         <View style={styles.mapFrame} accessibilityLabel="Map">
           <LeafletMapView
             style={styles.mapLayer}
@@ -245,7 +245,10 @@ export default function MapScreen() {
           ) : null}
 
           <View
-            style={[styles.frameOverlay, { paddingTop: OVERLAY_TOP, paddingHorizontal: H_PAD }]}
+            style={[
+              styles.frameOverlay,
+              { paddingTop: insets.top + OVERLAY_TOP, paddingHorizontal: H_PAD },
+            ]}
             pointerEvents="box-none"
           >
             <View

@@ -98,7 +98,7 @@ export function CheckinScannerModal({
             <View style={styles.frame} pointerEvents="none" />
             {busy ? (
               <View style={styles.busyOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#a3e635" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
                 <Text style={styles.busyText}>Recording your visit…</Text>
               </View>
             ) : null}
@@ -141,15 +141,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    paddingHorizontal: 20,
-    paddingBottom: 14,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 24,
+    paddingBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { color: '#fff', fontSize: 17, fontFamily: 'Poppins_500Medium', fontWeight: '600' },
-  close: { color: '#a3e635', fontSize: 15, fontFamily: 'Inter_500Medium' },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Poppins_600SemiBold',
+    letterSpacing: 0.2,
+  },
+  close: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_500Medium' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   hint: { color: '#e2e8f0', textAlign: 'center', marginBottom: 16, lineHeight: 20 },
   btn: {
@@ -167,8 +172,8 @@ const styles = StyleSheet.create({
     top: '22%',
     bottom: '28%',
     borderWidth: 2,
-    borderColor: 'rgba(163, 230, 53, 0.9)',
-    borderRadius: 16,
+    borderColor: '#FFFFFF',
+    borderRadius: 20,
   },
   busyOverlay: {
     position: 'absolute',
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(22, 53, 46, 0.9)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 24,

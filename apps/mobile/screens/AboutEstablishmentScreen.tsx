@@ -20,6 +20,8 @@ import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/nativ
 import { JamIcon } from '../components/JamIcon';
 import { Header } from '../components/Header';
 import { SaveToListSheet, type SaveToListRow } from '../components/SaveToListSheet';
+import { Toast, type ToastData } from '../components/Toast';
+import { AppDialog, type AppDialogData } from '../components/AppDialog';
 import { Place, getItineraryEstablishments } from '../data/mockData';
 import { parsePlaceCoords } from '../lib/placeCoords';
 import { placeImageSource } from '../lib/placeImageSource';
@@ -237,6 +239,14 @@ export default function AboutEstablishmentScreen() {
   const [listNameDraft, setListNameDraft] = useState('');
   const [saveListBusyId, setSaveListBusyId] = useState<string | null>(null);
   const [checkingSaved, setCheckingSaved] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [dialog, setDialog] = useState<AppDialogData | null>(null);
+  const notifySaveResult = useCallback(
+    (title: string, message: string, tone?: 'success' | 'error' | 'info') => {
+      setToast({ message, tone: tone ?? 'info' });
+    },
+    []
+  );
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [reviewNickname, setReviewNickname] = useState('');
   const [publishedReviews, setPublishedReviews] = useState<PlaceReview[]>([]);
@@ -528,6 +538,29 @@ export default function AboutEstablishmentScreen() {
     });
   };
 
+  /** Opens the Facebook app when the page is installed, otherwise the browser. */
+  const openFacebookPage = async (rawUrl: string) => {
+    const webUrl = normalizeExternalUrl(rawUrl);
+    const handleMatch = webUrl.match(/facebook\.com\/(?:pages\/[^/]+\/)?([A-Za-z0-9._-]+)/i);
+    const handle = handleMatch?.[1];
+    const appUrls = [
+      handle ? `fb://page/${handle}` : null,
+      `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`,
+    ].filter(Boolean) as string[];
+
+    for (const appUrl of appUrls) {
+      try {
+        if (await Linking.canOpenURL(appUrl)) {
+          await Linking.openURL(appUrl);
+          return;
+        }
+      } catch {
+        // try the next option
+      }
+    }
+    openContactLink(webUrl);
+  };
+
   const saveItemToList = async (listId: string, listName: string) => {
     if (isItinerary) {
       return addItineraryToSavedList(supabase, listId, place.id);
@@ -541,21 +574,25 @@ export default function AboutEstablishmentScreen() {
   const openSaveToListPicker = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      Alert.alert('Sign in', 'Sign in to save places to your lists.');
+      setDialog({
+        title: 'Sign in',
+        message: 'Sign in to save places to your lists.',
+        buttons: [{ label: 'OK', onPress: () => undefined }],
+      });
       return;
     }
 
     if (!isItinerary) {
       if (!isSupabasePlaceId(place.id)) {
-        Alert.alert(
-          'Can’t save this place',
-          'Only places from the Tara, Cavite! catalog (with a database id) can be added to a saved list. Try opening this spot from search or the map.'
-        );
+        setToast({
+          message: 'Only places from the Tara, Cavite! catalog can be saved to a list. Try opening this spot from search or the map.',
+          tone: 'info',
+        });
         return;
       }
       const exists = await placeRowExists(supabase, place.id);
       if (!exists) {
-        Alert.alert('Place not found', 'This location is not in the catalog yet and can’t be saved.');
+        setToast({ message: 'This location is not in the catalog yet and can’t be saved.', tone: 'error' });
         return;
       }
     }
@@ -566,41 +603,48 @@ export default function AboutEstablishmentScreen() {
       setPickLists(lists);
       setSaveModalVisible(true);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not load lists.');
+      setToast({ message: e instanceof Error ? e.message : 'Could not load lists.', tone: 'error' });
     }
   };
 
   const onConfirmRemoveSave = () => {
-    Alert.alert(
-      'Remove from saved lists?',
-      isItinerary
+    setDialog({
+      title: 'Remove from saved lists?',
+      message: isItinerary
         ? 'This removes this itinerary from every list it’s in.'
         : 'This removes the place from every list it’s in.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+      buttons: [
+        { label: 'Cancel', variant: 'text', onPress: () => undefined },
         {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) {
+          label: 'Remove',
+          variant: 'danger',
+          onPress: () => {
+            void (async () => {
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                  setSaved(false);
+                  return;
+                }
+                if (isItinerary) {
+                  await removeItineraryFromAllUserLists(supabase, user.id, place.id);
+                } else if (isSupabasePlaceId(place.id)) {
+                  await removePlaceFromAllUserLists(supabase, user.id, place.id);
+                }
                 setSaved(false);
-                return;
+                setToast({ message: 'Removed from saved lists', tone: 'success' });
+              } catch (e) {
+                setDialog({
+                  title: 'Error',
+                  message: e instanceof Error ? e.message : 'Could not update saved lists.',
+                  buttons: [{ label: 'OK', onPress: () => undefined }],
+                });
               }
-              if (isItinerary) {
-                await removeItineraryFromAllUserLists(supabase, user.id, place.id);
-              } else if (isSupabasePlaceId(place.id)) {
-                await removePlaceFromAllUserLists(supabase, user.id, place.id);
-              }
-              setSaved(false);
-            } catch (e) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'Could not update saved lists.');
-            }
+            })();
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const onPressSaveFab = () => {
@@ -615,7 +659,7 @@ export default function AboutEstablishmentScreen() {
       alertAfterSaveToList(res, place.name, list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } finally {
       setSaveListBusyId(null);
     }
@@ -634,9 +678,9 @@ export default function AboutEstablishmentScreen() {
       alertAfterSaveToList(res, place.name, list.name, () => {
         setSaveModalVisible(false);
         setSaved(true);
-      });
+      }, notifySaveResult);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not create list.');
+      setToast({ message: e instanceof Error ? e.message : 'Could not create list.', tone: 'error' });
     } finally {
       setSaveListBusyId(null);
     }
@@ -654,7 +698,7 @@ export default function AboutEstablishmentScreen() {
     const itinerarySlides = collectPhotoSlides(place);
     return (
       <View style={[styles.root, { backgroundColor: LIST_PAGE_BG }]}>
-        <Header title="About establishment" showBack darkBackground onBackPress={goBack} />
+        <Header title="About" showBack darkBackground onBackPress={goBack} />
         <View style={styles.itineraryCarouselPad}>
           <EstablishmentPhotoCarousel slides={itinerarySlides} placeName={place.name} />
         </View>
@@ -805,12 +849,14 @@ export default function AboutEstablishmentScreen() {
                     ) : null}
                     {place.social_facebook ? (
                       <TouchableOpacity
-                        onPress={() => openContactLink(place.social_facebook!)}
-                        activeOpacity={0.7}
+                        style={styles.contactSocialBtn}
+                        onPress={() => void openFacebookPage(place.social_facebook!)}
+                        activeOpacity={0.75}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open Facebook page"
                       >
-                        <Text style={styles.contactLink} numberOfLines={1}>
-                          Facebook
-                        </Text>
+                        <JamIcon ionicon="logo-facebook" size={16} color="#FFFFFF" />
+                        <Text style={styles.contactSocialBtnText}>Facebook</Text>
                       </TouchableOpacity>
                     ) : null}
                     {place.social_instagram ? (
@@ -993,6 +1039,9 @@ export default function AboutEstablishmentScreen() {
         busyListId={saveListBusyId}
         countLabel={isItinerary ? 'items' : 'places'}
       />
+
+      <Toast toast={toast} onDone={() => setToast(null)} />
+      <AppDialog dialog={dialog} onClose={() => setDialog(null)} />
     </View>
   );
 }
@@ -1009,7 +1058,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   carouselWrap: {
-    marginTop: 4,
+    marginTop: 16,
     marginBottom: 20,
     borderRadius: 18,
     overflow: 'hidden',
@@ -1073,8 +1122,8 @@ const styles = StyleSheet.create({
   addressLine: {
     marginTop: 8,
     fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     color: NEUTRAL_MUTED,
   },
   aboutPanel: {
@@ -1109,8 +1158,8 @@ const styles = StyleSheet.create({
   bodyText: {
     marginTop: 16,
     fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 20,
     color: '#404040',
     letterSpacing: 0.1,
   },
@@ -1236,6 +1285,22 @@ const styles = StyleSheet.create({
   },
   contactDetailItem: {
     gap: 0,
+  },
+  contactSocialBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#1877F2',
+  },
+  contactSocialBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: '#FFFFFF',
   },
   contactLink: {
     fontFamily: 'Inter_500Medium',
@@ -1420,7 +1485,7 @@ const styles = StyleSheet.create({
   },
   itineraryListContent: {
     paddingHorizontal: 18,
-    paddingTop: 4,
+    paddingTop: 30,
   },
   itineraryHeaderBlock: {
     paddingTop: 14,

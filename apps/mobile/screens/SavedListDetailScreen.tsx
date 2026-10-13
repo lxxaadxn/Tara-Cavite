@@ -8,8 +8,6 @@ import {
   Alert,
   TextInput,
   FlatList,
-  Modal,
-  Pressable,
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,7 +46,6 @@ export type SavedListDetailParams = {
     icon_name: string;
     type: 'private' | 'shared';
   };
-  focusKind?: TypeFilter;
 };
 
 type SavedRow = {
@@ -74,23 +71,16 @@ function rowSubtitle(item: SavedRow) {
   return item.itinerary?.subtitle || 'Itinerary';
 }
 
-const FILTER_OPTIONS: { key: TypeFilter; label: string }[] = [
-  { key: 'all', label: 'All saves' },
-  { key: 'establishment', label: 'Establishments' },
-  { key: 'itinerary', label: 'Itineraries' },
-];
-
 export default function SavedListDetailScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
-  const { listId, list, focusKind } = route.params as SavedListDetailParams;
+  const { listId, list } = route.params as SavedListDetailParams;
 
   const [loading, setLoading] = useState(true);
   const [allRows, setAllRows] = useState<SavedRow[]>([]);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(focusKind ?? 'all');
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -219,9 +209,6 @@ export default function SavedListDetailScreen() {
     });
   };
 
-  const filterLabel =
-    FILTER_OPTIONS.find((o) => o.key === typeFilter)?.label ?? 'All saves';
-
   const renderItem = ({ item }: { item: SavedRow }) => (
     <TouchableOpacity style={styles.card} onPress={() => openRow(item)} activeOpacity={0.85} accessibilityRole="button">
       <Image source={rowImage(item)} style={styles.cardImage} />
@@ -255,15 +242,19 @@ export default function SavedListDetailScreen() {
       <View style={styles.seg}>
         <TouchableOpacity
           style={[styles.segBtn, typeFilter === 'establishment' && styles.segBtnOn]}
-          onPress={() => setTypeFilter('establishment')}
+          onPress={() => setTypeFilter(typeFilter === 'establishment' ? 'all' : 'establishment')}
         >
-          <Text style={[styles.segText, typeFilter === 'establishment' && styles.segTextOn]}>Saved</Text>
+          <Text style={[styles.segText, typeFilter === 'establishment' && styles.segTextOn]}>
+            Establishments
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.segBtn, typeFilter === 'itinerary' && styles.segBtnOn]}
-          onPress={() => setTypeFilter('itinerary')}
+          onPress={() => setTypeFilter(typeFilter === 'itinerary' ? 'all' : 'itinerary')}
         >
-          <Text style={[styles.segText, typeFilter === 'itinerary' && styles.segTextOn]}>Itineraries</Text>
+          <Text style={[styles.segText, typeFilter === 'itinerary' && styles.segTextOn]}>
+            Itineraries
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -279,14 +270,6 @@ export default function SavedListDetailScreen() {
             accessibilityLabel="Search saves"
           />
         </View>
-        <TouchableOpacity
-          style={styles.filterCircle}
-          onPress={() => setFilterModalVisible(true)}
-          accessibilityLabel={`Filter saves. Current: ${filterLabel}`}
-          accessibilityRole="button"
-        >
-          <JamIcon name="filter" size={20} color={TEAL} />
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -308,47 +291,12 @@ export default function SavedListDetailScreen() {
             <Text style={styles.emptyText}>
               {allRows.length === 0
                 ? 'Nothing saved in this list yet.'
-                : 'No saves match your search or filter.'}
+                : 'No saves match your search.'}
             </Text>
           }
           showsVerticalScrollIndicator={false}
         />
       )}
-
-      <Modal
-        visible={filterModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setFilterModalVisible(false)}
-      >
-        <Pressable style={styles.filterOverlay} onPress={() => setFilterModalVisible(false)}>
-          <Pressable style={styles.filterSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.filterSheetTitle}>Show</Text>
-            {FILTER_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.key}
-                style={styles.filterOption}
-                onPress={() => {
-                  setTypeFilter(opt.key);
-                  setFilterModalVisible(false);
-                }}
-              >
-                <Text
-                  style={[styles.filterOptionText, typeFilter === opt.key && styles.filterOptionTextOn]}
-                >
-                  {opt.label}
-                </Text>
-                {typeFilter === opt.key ? (
-                  <JamIcon ionicon="checkmark" size={18} color={GREEN} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.filterDone} onPress={() => setFilterModalVisible(false)}>
-              <Text style={styles.filterDoneText}>Done</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -416,21 +364,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
     color: TITLE,
   },
-  filterCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: WHITE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(122, 120, 120, 0.28)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContent: {
     paddingHorizontal: H_PAD,
@@ -490,51 +423,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 32,
     paddingHorizontal: 24,
-  },
-  filterOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  filterSheet: {
-    backgroundColor: WHITE,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-  },
-  filterSheetTitle: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 16,
-    color: TITLE,
-    marginBottom: 12,
-  },
-  filterOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(122, 120, 120, 0.25)',
-  },
-  filterOptionText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 15,
-    color: MUTED,
-  },
-  filterOptionTextOn: {
-    color: GREEN,
-    fontFamily: 'Poppins_700Bold',
-  },
-  filterDone: {
-    alignSelf: 'center',
-    marginTop: 16,
-    paddingVertical: 12,
-  },
-  filterDoneText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 16,
-    color: TEAL,
   },
 });

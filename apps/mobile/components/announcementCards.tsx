@@ -21,7 +21,7 @@ import {
   announcementDisplayDateIso,
   announcementLocationLabel,
   announcementMapUrl,
-  formatAnnouncementDateTimeParts,
+  formatAnnouncementDateTimeRange,
 } from 'cavitour-shared/announcements';
 
 const MODAL_INK = '#16352E';
@@ -184,7 +184,7 @@ export function AnnouncementDetailModal({
   if (!item) return null;
 
   const location = announcementLocationLabel(item);
-  const eventParts = formatAnnouncementDateTimeParts(item.eventStartsAt, item.eventEndsAt);
+  const eventRange = formatAnnouncementDateTimeRange(item.eventStartsAt, item.eventEndsAt);
   const mapUrl = announcementMapUrl(item);
   const isAdvisory = item.kind === 'advisory';
   const accent = isAdvisory
@@ -235,38 +235,28 @@ export function AnnouncementDetailModal({
           </Pressable>
           <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             <View style={styles.sheetContent}>
-              <View style={styles.sheetHeadRow}>
-                <View style={styles.sheetHeadTextCol}>
-                  <View
-                    style={[
-                      styles.kindBadge,
-                      { backgroundColor: accent.badgeBg, borderColor: accent.badgeRing },
-                    ]}
-                  >
-                    <Text style={[styles.kindBadgeText, { color: accent.badgeText }]}>
-                      {isAdvisory ? 'Advisory' : 'Event'}
-                    </Text>
-                  </View>
-                  <Text style={styles.sheetTitle}>{item.title}</Text>
-                  {location ? (
-                    <View style={styles.locationRow}>
-                      <View style={[styles.locationDot, { backgroundColor: accent.dot }]} />
-                      <Text style={styles.locationText}>{location}</Text>
-                    </View>
-                  ) : null}
+              <View style={styles.sheetHeadCol}>
+                <View
+                  style={[
+                    styles.kindBadge,
+                    { backgroundColor: accent.badgeBg, borderColor: accent.badgeRing },
+                  ]}
+                >
+                  <Text style={[styles.kindBadgeText, { color: accent.badgeText }]}>
+                    {isAdvisory ? 'Advisory' : 'Event'}
+                  </Text>
                 </View>
-                {eventParts.length ? (
-                  <View
-                    style={[
-                      styles.dateChip,
-                      { backgroundColor: accent.dateBg, borderColor: accent.dateRing },
-                    ]}
-                  >
-                    {eventParts.map((line: string) => (
-                      <Text key={line} style={[styles.dateChipLine, { color: accent.dateText }]}>
-                        {line}
-                      </Text>
-                    ))}
+                <Text style={styles.sheetTitle}>{item.title}</Text>
+                {location ? (
+                  <View style={styles.locationRow}>
+                    <View style={[styles.locationDot, { backgroundColor: accent.dot }]} />
+                    <Text style={styles.locationText}>{location}</Text>
+                  </View>
+                ) : null}
+                {eventRange ? (
+                  <View style={styles.eventRow}>
+                    <View style={[styles.locationDot, { backgroundColor: accent.dot }]} />
+                    <Text style={[styles.eventText, { color: accent.dateText }]}>{eventRange}</Text>
                   </View>
                 ) : null}
               </View>
@@ -433,20 +423,12 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     padding: 20,
-    paddingRight: 56,
   },
-  sheetHeadRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sheetHeadTextCol: {
-    flex: 1,
-    minWidth: 0,
+  sheetHeadCol: {
+    alignItems: 'center',
+    width: '100%',
   },
   kindBadge: {
-    alignSelf: 'flex-start',
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -464,11 +446,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 27,
     color: MODAL_INK,
+    textAlign: 'center',
   },
   locationRow: {
     marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
   locationDot: {
@@ -481,20 +465,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MODAL_LOCATION,
     flexShrink: 1,
+    textAlign: 'center',
   },
-  dateChip: {
-    alignSelf: 'flex-start',
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 4,
+  eventRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  dateChipLine: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: 'right',
+  eventText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   bodyBox: {
     marginTop: 20,
@@ -517,6 +501,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
   },
   sheetAction: {
