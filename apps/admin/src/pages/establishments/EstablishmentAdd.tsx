@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { SelectMenu } from '../../components/SelectMenu';
 import { useToast } from '../../components/Toast';
+import { createAccountWithPassword } from '../../lib/adminAccounts';
 import {
   deleteEstablishmentDraft,
   establishmentSetupRedirect,
@@ -115,6 +116,7 @@ export function EstablishmentAddModal({
 
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [password, setPassword] = useState('');
   const [categories, setCategories] = useState<StaLookupOption[]>([]);
   const [cities, setCities] = useState<CityAdminRow[]>([]);
 
@@ -138,6 +140,7 @@ export function EstablishmentAddModal({
 
   useEffect(() => {
     if (!open) return;
+    setPassword('');
     if (ownerProfile) setForm(formFromOwner(ownerProfile));
     else if (establishment) setForm(formFromEstablishment(establishment));
     else setForm(draft ? formFromDraft(draft) : emptyForm);
@@ -187,6 +190,38 @@ export function EstablishmentAddModal({
         });
         toast(`${form.businessName.trim()} updated`, 'success');
         onSaved('updated');
+        onClose();
+        return;
+      }
+      const accountPassword = password.trim();
+      if (accountPassword) {
+        if (accountPassword.length < 6) {
+          toast('Password must be at least 6 characters.', 'error');
+          return;
+        }
+        // Create the account immediately with the given password — no invite email.
+        const result = await createAccountWithPassword(supabase, {
+          email: form.email,
+          password: accountPassword,
+          role: 'establishment',
+          fullName: form.fullName,
+          businessName: form.businessName,
+          businessType: form.businessType,
+          lgu: form.lgu,
+          barangay: form.barangay,
+          address: form.address,
+          phone: form.phone,
+        });
+        if (draft) await deleteEstablishmentDraft(supabase, draft.id).catch(() => undefined);
+        toast(
+          result.updated
+            ? `Password reset for existing account: ${form.email.trim().toLowerCase()}`
+            : `Account created for ${form.email.trim().toLowerCase()}`,
+          'success'
+        );
+        setForm(emptyForm);
+        setPassword('');
+        onSaved('invited');
         onClose();
         return;
       }
@@ -303,6 +338,24 @@ export function EstablishmentAddModal({
             Phone (optional)
             <input value={form.phone} onChange={(e) => field('phone', e.target.value)} disabled={saving} />
           </label>
+          {isOwner || establishment ? null : (
+            <label className={`${styles.field} ${styles.spanFull}`}>
+              Password
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank to send an invite link instead"
+                minLength={6}
+                disabled={saving}
+              />
+              <span className={styles.fieldHelp}>
+                Set a password to create the account right away — the establishment signs in with the
+                email above and this password. Leave it blank to email a setup link instead.
+              </span>
+            </label>
+          )}
           {isOwner ? (
             <label className={styles.field}>
               Category
@@ -406,8 +459,10 @@ export function EstablishmentAddModal({
                   ? 'Saving…'
                   : 'Save changes'
                 : saving
-                  ? 'Sending invitation…'
-                  : 'Send invitation'}
+                  ? 'Working…'
+                  : password.trim()
+                    ? 'Create account'
+                    : 'Send invitation'}
             </button>
           </div>
         </div>

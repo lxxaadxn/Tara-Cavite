@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAdminPathPrefix } from '../../contexts/AdminPathPrefixContext';
 import { useToast } from '../../components/Toast';
 import { addAdminAllowlistEmail } from '../../lib/adminEmail';
+import { createAccountWithPassword } from '../../lib/adminAccounts';
 import {
   type AccountRole,
   type AdminTraveler,
@@ -60,6 +61,7 @@ export function UsersList({ mode }: { mode: Mode }) {
   const [saving, setSaving] = useState(false);
   const [addAdminOpen, setAddAdminOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [addAdminError, setAddAdminError] = useState('');
   const [addingAdmin, setAddingAdmin] = useState(false);
 
@@ -125,6 +127,7 @@ export function UsersList({ mode }: { mode: Mode }) {
     if (addingAdmin) return;
     setAddAdminOpen(false);
     setAdminEmail('');
+    setAdminPassword('');
     setAddAdminError('');
   };
 
@@ -136,12 +139,33 @@ export function UsersList({ mode }: { mode: Mode }) {
       setAddAdminError('Enter a valid email address.');
       return;
     }
+    const password = adminPassword.trim();
+    if (password && password.length < 6) {
+      setAddAdminError('Password must be at least 6 characters.');
+      return;
+    }
     setAddingAdmin(true);
     try {
-      const saved = await addAdminAllowlistEmail(supabase, trimmed);
-      toast(`Added admin: ${saved}`, 'success');
+      if (password) {
+        // Create the real auth account (email confirmed) + allowlist entry.
+        const result = await createAccountWithPassword(supabase, {
+          email: trimmed,
+          password,
+          role: 'admin',
+        });
+        toast(
+          result.updated
+            ? `Password reset for existing account: ${trimmed}`
+            : `Account created: ${trimmed}`,
+          'success'
+        );
+      } else {
+        const saved = await addAdminAllowlistEmail(supabase, trimmed);
+        toast(`Added admin: ${saved}`, 'success');
+      }
       setAddAdminOpen(false);
       setAdminEmail('');
+      setAdminPassword('');
       await reload();
     } catch (err) {
       setAddAdminError(err instanceof Error ? err.message : 'Could not add admin email');
@@ -293,7 +317,8 @@ export function UsersList({ mode }: { mode: Mode }) {
           <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="add-admin-title">
             <h2 id="add-admin-title">Add Admin</h2>
             <p className={styles.modalHint}>
-              Add an email to the admin allowlist. That Google or password account can then sign in to the admin app.
+              Create the admin account with a password so it can sign in right away — or leave the
+              password blank to only allowlist the email (that person then signs up themselves).
             </p>
             <form onSubmit={(e) => void submitAddAdmin(e)}>
               <label className={styles.label}>
@@ -309,6 +334,19 @@ export function UsersList({ mode }: { mode: Mode }) {
                   disabled={addingAdmin}
                 />
               </label>
+              <label className={styles.label}>
+                Password
+                <input
+                  className={styles.textInput}
+                  type="password"
+                  autoComplete="new-password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Leave blank to allowlist only"
+                  minLength={6}
+                  disabled={addingAdmin}
+                />
+              </label>
               {addAdminError ? (
                 <p className={styles.modalError} role="alert">
                   {addAdminError}
@@ -319,7 +357,7 @@ export function UsersList({ mode }: { mode: Mode }) {
                   Cancel
                 </button>
                 <button type="submit" className={styles.primaryBtn} disabled={addingAdmin}>
-                  {addingAdmin ? 'Adding…' : 'Add Admin'}
+                  {addingAdmin ? 'Saving…' : adminPassword.trim() ? 'Create account' : 'Add Admin'}
                 </button>
               </div>
             </form>
