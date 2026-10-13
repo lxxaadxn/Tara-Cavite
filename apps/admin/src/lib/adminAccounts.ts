@@ -14,6 +14,8 @@ export type AdminCreateAccountInput = {
   email: string;
   password: string;
   role: 'admin' | 'establishment';
+  /** Existing STA catalog row to link (connect-account flow). */
+  staPlaceId?: string;
   fullName?: string;
   businessName?: string;
   businessType?: string;
@@ -40,6 +42,7 @@ export async function createAccountWithPassword(
       email: input.email.trim().toLowerCase(),
       password: input.password,
       role: input.role,
+      staPlaceId: (input.staPlaceId ?? '').trim(),
       fullName: (input.fullName ?? '').trim(),
       businessName: (input.businessName ?? '').trim(),
       businessType: (input.businessType ?? '').trim(),

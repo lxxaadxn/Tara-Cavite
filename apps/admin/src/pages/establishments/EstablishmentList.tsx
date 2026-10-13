@@ -5,6 +5,7 @@ import { CrudBadge } from '../../components/ContentCrudPage';
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu';
 import { EyeIcon, PencilIcon } from '../../components/rowIcons';
 import { EstablishmentAddModal } from './EstablishmentAdd';
+import { EstablishmentConnectModal } from './EstablishmentConnect';
 import { useAdminPathPrefix } from '../../contexts/AdminPathPrefixContext';
 import { useToast } from '../../components/Toast';
 import {
@@ -110,6 +111,7 @@ export function EstablishmentList({ mode }: { mode: EstablishmentListMode }) {
   const [pendingDraftDelete, setPendingDraftDelete] = useState<EstablishmentDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
   const [editingDraft, setEditingDraft] = useState<EstablishmentDraft | null>(null);
   const [editingRow, setEditingRow] = useState<AdminEstablishment | null>(null);
 
@@ -299,6 +301,15 @@ export function EstablishmentList({ mode }: { mode: EstablishmentListMode }) {
               }}
             >
               Add establishment
+            </button>
+          ) : null}
+          {mode === 'all' ? (
+            <button
+              type="button"
+              className={crud.actionBtn}
+              onClick={() => setConnectOpen(true)}
+            >
+              Connect account
             </button>
           ) : null}
         </div>
@@ -529,6 +540,12 @@ export function EstablishmentList({ mode }: { mode: EstablishmentListMode }) {
           setEditingDraft(null);
           setEditingRow(null);
         }}
+        onSaved={() => void reload()}
+      />
+
+      <EstablishmentConnectModal
+        open={connectOpen}
+        onClose={() => setConnectOpen(false)}
         onSaved={() => void reload()}
       />
 

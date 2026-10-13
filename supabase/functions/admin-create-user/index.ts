@@ -15,6 +15,7 @@ type CreateUserBody = {
   email?: string;
   password?: string;
   role?: 'admin' | 'establishment';
+  staPlaceId?: string;
   businessName?: string;
   fullName?: string;
   businessType?: string;
@@ -75,12 +76,16 @@ Deno.serve(async (req) => {
   const email = trim(body.email).toLowerCase();
   const password = String(body.password ?? '');
   const role = body.role === 'establishment' ? 'establishment' : 'admin';
+  const staPlaceId = trim(body.staPlaceId);
 
   if (!email || !email.includes('@')) {
     return json(400, { error: 'A valid email address is required.' });
   }
   if (password.length < 6) {
     return json(400, { error: 'Password must be at least 6 characters.' });
+  }
+  if (staPlaceId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staPlaceId)) {
+    return json(400, { error: 'staPlaceId must be a UUID.' });
   }
   if (role === 'establishment' && ADMIN_RESERVED_EMAILS.some((r) => r.toLowerCase() === email)) {
     return json(400, { error: 'That email is reserved for the Tourism Office admin.' });
@@ -149,6 +154,7 @@ Deno.serve(async (req) => {
     {
       id: userId,
       email,
+      ...(staPlaceId ? { sta_place_id: staPlaceId } : {}),
       full_name: trim(body.fullName) || null,
       phone: trim(body.phone) || null,
       business_name: trim(body.businessName),
@@ -167,6 +173,18 @@ Deno.serve(async (req) => {
   );
   if (upsertErr) {
     return json(400, { error: upsertErr.message });
+  }
+
+  if (staPlaceId) {
+    // Linking to an EXISTING catalog row: force the link after the upsert so a
+    // live "auto-create STA row" trigger can never override or drop it.
+    const { error: linkErr } = await admin
+      .from('establishment_owners')
+      .update({ sta_place_id: staPlaceId })
+      .eq('id', userId);
+    if (linkErr) {
+      return json(400, { error: linkErr.message });
+    }
   }
 
   return json(200, { ok: true, userId, updated });
