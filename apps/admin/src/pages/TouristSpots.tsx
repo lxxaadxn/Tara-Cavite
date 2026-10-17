@@ -163,6 +163,38 @@ export function TouristSpots() {
     });
   };
 
+  // Paste-to-upload: while the edit modal is open, an image copied anywhere
+  // (screenshot, right-click copy, etc.) can be pasted with Ctrl+V. It is
+  // staged exactly like a picked file and uploaded on Save.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          if (blob) {
+            const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png';
+            files.push(new File([blob], `pasted-${Date.now()}-${i}.${ext}`, { type: blob.type }));
+          }
+        }
+      }
+      if (files.length === 0) return;
+      e.preventDefault();
+      for (const file of files) {
+        const url = URL.createObjectURL(file);
+        fileByBlobUrl.current.set(url, file);
+        setForm((prev) => ({ ...prev, images: [...prev.images, url] }));
+      }
+      toast(files.length === 1 ? 'Image pasted — remember to Save.' : `${files.length} images pasted — remember to Save.`);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [modalOpen, toast]);
+
   const handleSave = async () => {
     if (!form.name.trim()) {
       toast('Please enter a destination name', 'error');
@@ -451,6 +483,18 @@ export function TouristSpots() {
                   onChange={(e) => onPickFiles(e.target.files)}
                 />
               </label>
+              <div
+                className={styles.pasteZone}
+                role="button"
+                tabIndex={0}
+                aria-label="Paste image from clipboard"
+              >
+                📋 Paste an image here — press <strong>&nbsp;Ctrl+V&nbsp;</strong> (works anywhere in this window)
+              </div>
+              <p className={styles.pasteZoneHint}>
+                Copy an image first (screenshot tool, right-click → Copy image, or Ctrl+C in your
+                file explorer), then paste it above. It uploads when you save.
+              </p>
               {form.images.length > 0 && (
                 <div className={styles.imageGrid}>
                   {form.images.map((url, idx) => (
