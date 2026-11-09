@@ -943,11 +943,12 @@ export function ContentEstablishments() {
           ? tableColumns.filter((col) => col.key !== 'highlight')
           : tableColumns
       }
-      rowMenuItems={(row, { status: tab, saving }) =>
-        tab === 'hidden' && !saving
+      rowMenuItems={(row, { saving }) => {
+        if (saving) return [];
+        return row.highlight === 'red'
           ? [{ label: 'Show on app', onSelect: () => void toggleListing(row, 'none') }]
-          : []
-      }
+          : [{ label: 'Hide on app', onSelect: () => void toggleListing(row, 'red') }];
+      }}
     />
   );
 }
